@@ -105,24 +105,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve workflow repo
-        id: wfref
-        shell: bash
-        env:
-          WF_REF_FULL: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-          IFS='@' read -r path ref <<< "$WF_REF_FULL"
-          repo=$(echo "$path" | cut -d'/' -f1-2)
-          echo "repo=$repo" >> "$GITHUB_OUTPUT"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout modsharp-deploy
+      - name: Checkout modsharp-publish-action
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.wfref.outputs.repo }}
-          ref: ${{ steps.wfref.outputs.ref }}
+          repository: fltuna/modsharp-publish-action
+          ref: ${{ github.workflow_sha }}
           path: .modsharp-deploy
+
+      - name: Verify scripts
+        shell: bash
+        run: |
+          if [[ ! -d .modsharp-deploy/scripts ]]; then
+            echo "::error::scripts directory missing. github.workflow_sha=${{ github.workflow_sha }}"
+            ls -la .modsharp-deploy/ || true
+            exit 1
+          fi
 
       - name: Parse platforms
         id: parse
@@ -142,24 +139,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve workflow repo
-        id: wfref
-        shell: bash
-        env:
-          WF_REF_FULL: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-          IFS='@' read -r path ref <<< "$WF_REF_FULL"
-          repo=$(echo "$path" | cut -d'/' -f1-2)
-          echo "repo=$repo" >> "$GITHUB_OUTPUT"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout modsharp-deploy
+      - name: Checkout modsharp-publish-action
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.wfref.outputs.repo }}
-          ref: ${{ steps.wfref.outputs.ref }}
+          repository: fltuna/modsharp-publish-action
+          ref: ${{ github.workflow_sha }}
           path: .modsharp-deploy
+
+      - name: Verify scripts
+        shell: bash
+        run: |
+          if [[ ! -d .modsharp-deploy/scripts ]]; then
+            echo "::error::scripts directory missing. github.workflow_sha=${{ github.workflow_sha }}"
+            ls -la .modsharp-deploy/ || true
+            exit 1
+          fi
 
       - name: Validate NuGet PackageIds
         if: ${{ inputs.nuget-project-dirs != '' }}
@@ -203,24 +197,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve workflow repo
-        id: wfref
-        shell: bash
-        env:
-          WF_REF_FULL: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-          IFS='@' read -r path ref <<< "$WF_REF_FULL"
-          repo=$(echo "$path" | cut -d'/' -f1-2)
-          echo "repo=$repo" >> "$GITHUB_OUTPUT"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout modsharp-deploy
+      - name: Checkout modsharp-publish-action
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.wfref.outputs.repo }}
-          ref: ${{ steps.wfref.outputs.ref }}
+          repository: fltuna/modsharp-publish-action
+          ref: ${{ github.workflow_sha }}
           path: .modsharp-deploy
+
+      - name: Verify scripts
+        shell: bash
+        run: |
+          if [[ ! -d .modsharp-deploy/scripts ]]; then
+            echo "::error::scripts directory missing. github.workflow_sha=${{ github.workflow_sha }}"
+            ls -la .modsharp-deploy/ || true
+            exit 1
+          fi
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -281,24 +272,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve workflow repo
-        id: wfref
-        shell: bash
-        env:
-          WF_REF_FULL: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-          IFS='@' read -r path ref <<< "$WF_REF_FULL"
-          repo=$(echo "$path" | cut -d'/' -f1-2)
-          echo "repo=$repo" >> "$GITHUB_OUTPUT"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout modsharp-deploy
+      - name: Checkout modsharp-publish-action
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.wfref.outputs.repo }}
-          ref: ${{ steps.wfref.outputs.ref }}
+          repository: fltuna/modsharp-publish-action
+          ref: ${{ github.workflow_sha }}
           path: .modsharp-deploy
+
+      - name: Verify scripts
+        shell: bash
+        run: |
+          if [[ ! -d .modsharp-deploy/scripts ]]; then
+            echo "::error::scripts directory missing. github.workflow_sha=${{ github.workflow_sha }}"
+            ls -la .modsharp-deploy/ || true
+            exit 1
+          fi
 
       - name: Validate NuGet PackageIds
         env:
