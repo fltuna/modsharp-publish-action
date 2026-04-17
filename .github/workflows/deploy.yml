@@ -59,6 +59,10 @@ on:
         description: 'Directories at repo root to copy verbatim into each main module output'
         type: string
         default: ''
+      top-level-dirs:
+        description: 'Directories at repo root to copy to .build/<name>/ once (shared across modules, same as how gamedata is handled)'
+        type: string
+        default: ''
       main-artifact-name:
         description: 'Base name (no extension) for the primary zip. Platform suffix is appended automatically when multiple platforms are built.'
         type: string
@@ -173,6 +177,7 @@ jobs:
           MSD_SHARED_DLLS_TO_REMOVE: ${{ inputs.shared-dlls-to-remove }}
           MSD_SHARED_DLLS_TO_REMOVE_FILE: ${{ inputs.shared-dlls-to-remove-file }}
           MSD_CUSTOM_DIRS: ${{ inputs.custom-dirs }}
+          MSD_TOP_LEVEL_DIRS: ${{ inputs.top-level-dirs }}
         run: bash .modsharp-deploy/scripts/build.sh
 
   publish:
@@ -220,6 +225,7 @@ jobs:
           MSD_SHARED_DLLS_TO_REMOVE: ${{ inputs.shared-dlls-to-remove }}
           MSD_SHARED_DLLS_TO_REMOVE_FILE: ${{ inputs.shared-dlls-to-remove-file }}
           MSD_CUSTOM_DIRS: ${{ inputs.custom-dirs }}
+          MSD_TOP_LEVEL_DIRS: ${{ inputs.top-level-dirs }}
         run: bash .modsharp-deploy/scripts/build.sh
 
       - name: Create main artifact

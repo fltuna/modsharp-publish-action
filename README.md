@@ -252,9 +252,12 @@ See [Managing the DLL removal list](#managing-the-dll-removal-list) for details.
 
 | input | type | default | description |
 | --- | --- | --- | --- |
-| `custom-dirs` | string | `''` | Directories at the repo root copied into every module output (e.g. `lang cfg`) |
+| `custom-dirs` | string | `''` | Directories at the repo root copied into EVERY module output (e.g. `lang cfg`) — duplicates per module |
+| `top-level-dirs` | string | `''` | Directories at the repo root copied ONCE to `.build/<name>/` — same placement as `gamedata/` |
 
-Passing `custom-dirs: lang cfg` copies those directories into `.build/modules/<project>/lang/` and `.../cfg/`.
+Passing `custom-dirs: lang cfg` copies those directories into `.build/modules/<project>/lang/` and `.../cfg/` (once per module).
+
+Passing `top-level-dirs: locales` copies `locales/` once into `.build/locales/` (shared across all modules in the resulting zip).
 
 ### Artifacts
 
@@ -529,6 +532,7 @@ gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prereleas
    ├─ rename appsettings.json → appsettings.example.json
    └─ copy custom-dirs
 6. Copy gamedata/ → .build/gamedata/ (if present)
+6b. Copy each top-level-dirs entry → .build/<name>/ (once, shared across modules)
 7. Zip the paths in main-artifact-include → dist/<name>.zip
 8. (if configured) Download and extract dependencies into .build/
 9. (if configured) Zip the paths in extended-artifact-include → dist/<name>.zip

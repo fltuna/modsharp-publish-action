@@ -249,9 +249,12 @@ jobs:
 
 | 入力 | 型 | デフォルト | 説明 |
 | --- | --- | --- | --- |
-| `custom-dirs` | string | `''` | プロジェクトルートに置いたディレクトリを各モジュール出力にコピー (例: `lang cfg`) |
+| `custom-dirs` | string | `''` | プロジェクトルートに置いたディレクトリを各モジュール出力にコピー (例: `lang cfg`)。モジュールごとに複製される |
+| `top-level-dirs` | string | `''` | プロジェクトルートに置いたディレクトリを `.build/<name>/` に1回だけコピー (`gamedata/` と同じ扱い) |
 
-`custom-dirs: lang cfg` を指定すると、各 `.build/modules/<project>/lang/` / `.../cfg/` に中身がコピーされます。
+`custom-dirs: lang cfg` を指定すると、各 `.build/modules/<project>/lang/` / `.../cfg/` に中身がコピーされます (モジュール数ぶん複製)。
+
+`top-level-dirs: locales` を指定すると、`locales/` が `.build/locales/` に1回コピーされ、全モジュールで共有される (zip 内で重複しない)。
 
 ### 成果物
 
@@ -529,6 +532,7 @@ gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prereleas
    ├─ appsettings.json → appsettings.example.json にリネーム
    └─ custom-dirs をコピー
 6. gamedata/ → .build/gamedata/ にコピー (存在時)
+6b. top-level-dirs の各項目 → .build/<name>/ に1回コピー (モジュール間で共有)
 7. main-artifact-include のパスを zip 化 → dist/<name>.zip
 8. (指定時) dependencies を .build/ に展開
 9. (指定時) extended-artifact-include のパスを zip 化 → dist/<name>.zip

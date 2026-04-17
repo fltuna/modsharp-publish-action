@@ -15,7 +15,8 @@
 #   MSD_BUILTIN_DLLS_FILE     path to the built-in defaults list (optional)
 #   MSD_SHARED_DLLS_TO_REMOVE shared DLLs to strip from module outputs
 #   MSD_SHARED_DLLS_TO_REMOVE_FILE  path to a file listing shared DLLs
-#   MSD_CUSTOM_DIRS           directories to copy into each module output
+#   MSD_CUSTOM_DIRS           directories to copy into EACH module output
+#   MSD_TOP_LEVEL_DIRS        directories to copy to .build/<name>/ (once, like gamedata)
 set -euo pipefail
 
 normalize() { echo "$1" | tr '\n' ' ' | tr -s ' '; }
@@ -34,6 +35,7 @@ SHARED_BUILD_ONLY=$(normalize "${MSD_SHARED_BUILD_ONLY:-}")
 DLLS_TO_REMOVE=$(normalize "$(read_list_file "${MSD_BUILTIN_DLLS_FILE:-}") ${MSD_DLLS_TO_REMOVE:-} $(read_list_file "${MSD_DLLS_TO_REMOVE_FILE:-}")")
 SHARED_DLLS_TO_REMOVE=$(normalize "${MSD_SHARED_DLLS_TO_REMOVE:-} $(read_list_file "${MSD_SHARED_DLLS_TO_REMOVE_FILE:-}")")
 CUSTOM_DIRS=$(normalize "${MSD_CUSTOM_DIRS:-}")
+TOP_LEVEL_DIRS=$(normalize "${MSD_TOP_LEVEL_DIRS:-}")
 
 rm -rf .build/gamedata .build/modules .build/shared
 
@@ -92,3 +94,13 @@ if [[ -d gamedata ]]; then
   mkdir -p .build/gamedata
   cp -r gamedata/. .build/gamedata/
 fi
+
+for tdir in $TOP_LEVEL_DIRS; do
+  if [[ -d "$tdir" ]]; then
+    echo "Copying top-level $tdir → .build/$tdir"
+    mkdir -p ".build/$tdir"
+    cp -r "$tdir/." ".build/$tdir/"
+  else
+    echo "::warning::top-level-dirs: '$tdir' not found, skipping"
+  fi
+done
