@@ -1,4 +1,4 @@
-# modsharp-deploy
+# modsharp-publish-action
 
 > 注意: このワークフローおよび付属スクリプトは AI アシスタント (Claude) によって生成されています。利用前に内容をよく確認し、問題を見つけた場合は issue を立ててください。
 
@@ -100,7 +100,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -122,7 +122,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -147,7 +147,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -193,7 +193,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: |
         PluginA
@@ -444,7 +444,7 @@ with:
 ```yaml
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -476,7 +476,7 @@ jobs:
 ```yaml
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -550,7 +550,7 @@ gh release create "${GITHUB_REF_NAME}" --prerelease ...
 ## リポジトリ構成
 
 ```
-modsharp-deploy/
+modsharp-publish-action/
 ├── .github/workflows/
 │   └── deploy.yml                 # 再利用可能ワークフロー (orchestration only)
 ├── defaults/
@@ -579,8 +579,8 @@ cd your-plugin-repo/
 export MSD_PLATFORM=linux-x64
 export MSD_TFM=net10.0
 export MSD_PROJECTS=MyPlugin
-export MSD_BUILTIN_DLLS_FILE=/path/to/modsharp-deploy/defaults/dlls-to-remove.txt
-bash /path/to/modsharp-deploy/scripts/build.sh
+export MSD_BUILTIN_DLLS_FILE=/path/to/modsharp-publish-action/defaults/dlls-to-remove.txt
+bash /path/to/modsharp-publish-action/scripts/build.sh
 # → .build/ に出力される
 ```
 
@@ -588,7 +588,7 @@ validate-packageids.sh:
 
 ```bash
 export MSD_NUGET_PROJECT_DIRS=MyLib1
-bash /path/to/modsharp-deploy/scripts/validate-packageids.sh
+bash /path/to/modsharp-publish-action/scripts/validate-packageids.sh
 ```
 
 ## Permissions

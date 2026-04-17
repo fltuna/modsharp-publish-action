@@ -1,4 +1,4 @@
-# modsharp-deploy
+# modsharp-publish-action
 
 > Notice: this workflow and its scripts were generated with the help of an AI assistant (Claude). Review carefully before use and open an issue if you spot anything wrong.
 
@@ -103,7 +103,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -125,7 +125,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -150,7 +150,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -196,7 +196,7 @@ on:
 
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: |
         PluginA
@@ -444,7 +444,7 @@ This workflow stops at artifact upload. Add a separate release job in your calle
 ```yaml
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -476,7 +476,7 @@ Use `pattern:` + `merge-multiple: true` to download every matrix entry:
 ```yaml
 jobs:
   cicd:
-    uses: fltuna/modsharp-deploy/.github/workflows/deploy.yml@v1
+    uses: fltuna/modsharp-publish-action/.github/workflows/deploy.yml@v1
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -550,7 +550,7 @@ The `build` CI job runs steps 1 through 6 only — no zipping, no upload.
 ## Repository layout
 
 ```
-modsharp-deploy/
+modsharp-publish-action/
 ├── .github/workflows/
 │   └── deploy.yml                 # reusable workflow (orchestration only)
 ├── defaults/
@@ -580,8 +580,8 @@ cd your-plugin-repo/
 export MSD_PLATFORM=linux-x64
 export MSD_TFM=net10.0
 export MSD_PROJECTS=MyPlugin
-export MSD_BUILTIN_DLLS_FILE=/path/to/modsharp-deploy/defaults/dlls-to-remove.txt
-bash /path/to/modsharp-deploy/scripts/build.sh
+export MSD_BUILTIN_DLLS_FILE=/path/to/modsharp-publish-action/defaults/dlls-to-remove.txt
+bash /path/to/modsharp-publish-action/scripts/build.sh
 # → output lands in .build/
 ```
 
@@ -589,7 +589,7 @@ Running `validate-packageids.sh`:
 
 ```bash
 export MSD_NUGET_PROJECT_DIRS=MyLib1
-bash /path/to/modsharp-deploy/scripts/validate-packageids.sh
+bash /path/to/modsharp-publish-action/scripts/validate-packageids.sh
 ```
 
 ## Permissions
