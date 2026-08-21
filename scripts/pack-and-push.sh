@@ -6,11 +6,11 @@
 # Inputs:
 #   MSD_NUGET_PROJECT_DIRS — space/newline separated directories
 #   MSD_VERSION            — version string to match *.${MSD_VERSION}.nupkg
-#   NUGET_API_KEY          — secret
+#   NUGET_API_KEY          — short-lived key minted by the NuGet/login step
 set -euo pipefail
 
 if [[ -z "${NUGET_API_KEY:-}" ]]; then
-  echo "::error::NUGET_API_KEY secret is required when nuget-project-dirs is set"
+  echo "::error::no NuGet API key: the NuGet/login step produced nothing. Check that the caller passes secrets: NUGET_USER, grants permissions: id-token: write, and that nuget.org has a trusted publishing policy for this repository and workflow."
   exit 1
 fi
 

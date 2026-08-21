@@ -85,7 +85,7 @@ on:
 
 ## コピペできるbuild jobテンプレ
 
-各テンプレートは `on:` トリガーも含めた完全形。`uses:` の `@v1` はタグ運用に応じて変えてください (`@main` でもOK)。
+各テンプレートは `on:` トリガーも含めた完全形。`uses:` の `@v2` はタグ運用に応じて変えてください (`@main` でもOK)。
 
 ### A. シンプルなプラグイン (単一platform)
 
@@ -100,7 +100,7 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -122,7 +122,7 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -147,7 +147,10 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -170,7 +173,7 @@ jobs:
       nuget-project-dirs: TnmsPluginFoundation
       nuget-config-props: config.props
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 結果 (tag push時):
@@ -193,7 +196,10 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write
     with:
       projects: |
         PluginA
@@ -207,7 +213,7 @@ jobs:
 
       nuget-project-dirs: CoreLib ExtensionLib
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 ## 入力一覧
@@ -281,14 +287,27 @@ csproj には明示的な `<PackageId>` が必須 ([NuGet公開](#nuget公開)�
 
 | 名前 | 必須 | 用途 |
 | --- | --- | --- |
-| `NUGET_API_KEY` | `nuget-project-dirs` 指定時のみ | NuGet.org認証用 APIキー |
+| `NUGET_USER` | `nuget-project-dirs` 指定時のみ | nuget.org のユーザー名。メールアドレスではなくプロフィール名 |
 
-呼び出し側で明示的に渡す必要があります:
+APIキーはどこにも保存しません。
+push の認証は GitHub OIDC 経由で行われ、nuget.org がワークフローのトークンを trusted publishing ポリシーと照合し、そのジョブ限りで失効するキーを発行します。
+必要な条件は 3 つあり、そのうち 2 つは呼び出し側にあります。
 
 ```yaml
-secrets:
-  NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+jobs:
+  cicd:
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write        # 再利用ワークフローは自分自身にこの権限を与えられない
+    with: ...
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
+
+3 つ目は nuget.org 側にあります。
+アカウントの設定で、このリポジトリと、呼び出し元のワークフローファイルを指定した trusted publishing ポリシーを追加してください。
+これが無いとログインステップが失敗し、ワークフロー側をいくら直しても通りません。
 
 ## DLL除外リストの管理
 
@@ -302,7 +321,7 @@ ModSharp 側の更新で提供DLLが変わった場合:
 
 1. このリポジトリの `defaults/dlls-to-remove.txt` を更新
 2. 新しいタグを切る
-3. caller 側は `@v1` → `@v2` に変更するだけで追従
+3. caller 側は `@v2` → `@v2` に変更するだけで追従
 
 ### 追加だけしたい
 
@@ -356,11 +375,14 @@ with:
 `nuget-project-dirs` に公開したいプロジェクトディレクトリを列挙。`config.props` (または `nuget-config-props` で指定したファイル) から `<Version>` を読み取り、そのバージョンの nupkg のみを push します。
 
 ```yaml
+permissions:
+  contents: read
+  id-token: write
 with:
   nuget-project-dirs: MyLib1 MyLib2
   nuget-config-props: config.props   # デフォルト
 secrets:
-  NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+  NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 `config.props` 例:
@@ -447,7 +469,7 @@ with:
 ```yaml
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -480,7 +502,7 @@ jobs:
 ```yaml
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -549,7 +571,7 @@ gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prereleas
 | `::error::<Version> not found in config.props` | `config.props` に `<Project><PropertyGroup><Version>...</Version></PropertyGroup></Project>` があるか確認 |
 | `::warning::<name>/<name>.csproj not found, skipping` | `projects` 入力の名前とディレクトリ名・csproj名が一致するか確認 |
 | `::error::no paths to include in <name> zip` | `main-artifact-include` が参照するパスが `.build/` 配下に存在しない。ビルドが成功しているか、`include` の指定が正しいか確認 |
-| `::error::NUGET_API_KEY secret is required` | `secrets: NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}` を caller 側で渡しているか確認 |
+| `::error::no NuGet API key` | OIDC ログインがキーを取得できていない。caller が `secrets: NUGET_USER` を渡しているか、呼び出しジョブに `permissions: id-token: write` があるか、nuget.org 側に該当リポジトリ・ワークフローの trusted publishing ポリシーがあるかの 3 点を確認 |
 | Artifact upload が `if-no-files-found: error` で失敗 | `main-artifact-name` も `extended-artifact-name` も空のまま tag を打っている。どちらか設定する |
 | matrix が起動しない / matrix が常に1つしか回らない | `platforms` に複数指定できているか確認 (スペース/改行区切り、`["linux-x64","win-x64"]` のようなJSON形式は不要) |
 

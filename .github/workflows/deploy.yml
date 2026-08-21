@@ -96,7 +96,11 @@ on:
         type: string
         default: '[no ci]'
     secrets:
-      NUGET_API_KEY:
+      NUGET_USER:
+        description: >-
+          nuget.org username - the profile name, not the email address. Required when
+          nuget-project-dirs is set. The push authenticates through GitHub OIDC, which trades this
+          for an API key that expires with the job, so no long-lived key is stored anywhere.
         required: false
 
 jobs:
@@ -117,7 +121,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: possession-community/modsharp-publish-action
-          ref: v1
+          ref: v2
           path: .modsharp-deploy
 
       - name: Parse platforms
@@ -146,7 +150,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: possession-community/modsharp-publish-action
-          ref: v1
+          ref: v2
           path: .modsharp-deploy
 
       - name: Validate NuGet PackageIds
@@ -200,7 +204,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: possession-community/modsharp-publish-action
-          ref: v1
+          ref: v2
           path: .modsharp-deploy
 
       - name: Setup .NET
@@ -262,6 +266,11 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.nuget-project-dirs != '' }}
     needs: publish
     runs-on: ${{ inputs.runs-on }}
+    # id-token is what lets NuGet/login mint a key. A reusable workflow cannot grant itself more
+    # than the caller allows, so the calling job has to declare id-token: write as well.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -273,7 +282,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: possession-community/modsharp-publish-action
-          ref: v1
+          ref: v2
           path: .modsharp-deploy
 
       - name: Validate NuGet PackageIds
@@ -292,9 +301,17 @@ jobs:
           MSD_PROPS_FILE: ${{ inputs.nuget-config-props }}
         run: bash .modsharp-deploy/scripts/extract-version.sh
 
+      # Trusted publishing: nuget.org verifies this workflow's OIDC token against the policy
+      # configured on the package owner's account and hands back a key valid for this run only.
+      - name: NuGet login
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Pack and push
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           MSD_NUGET_PROJECT_DIRS: ${{ inputs.nuget-project-dirs }}
           MSD_VERSION: ${{ steps.version.outputs.version }}
         run: bash .modsharp-deploy/scripts/pack-and-push.sh

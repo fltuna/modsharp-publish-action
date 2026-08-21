@@ -88,7 +88,7 @@ on:
 
 ## Copy-paste build job templates
 
-Each template is a complete workflow file. Replace `@v1` with whichever ref you want to pin to (`@main` is fine while iterating).
+Each template is a complete workflow file. Replace `@v2` with whichever ref you want to pin to (`@main` is fine while iterating).
 
 ### A. Simple plugin (single platform)
 
@@ -103,7 +103,7 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -125,7 +125,7 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -150,7 +150,10 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -173,7 +176,7 @@ jobs:
       nuget-project-dirs: TnmsPluginFoundation
       nuget-config-props: config.props
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 Result (on tag push):
@@ -196,7 +199,10 @@ on:
 
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write
     with:
       projects: |
         PluginA
@@ -210,7 +216,7 @@ jobs:
 
       nuget-project-dirs: CoreLib ExtensionLib
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 ## Inputs
@@ -284,14 +290,27 @@ Every csproj referenced here must have an explicit `<PackageId>` — see [NuGet 
 
 | name | required | purpose |
 | --- | --- | --- |
-| `NUGET_API_KEY` | only when `nuget-project-dirs` is set | NuGet.org API key |
+| `NUGET_USER` | only when `nuget-project-dirs` is set | nuget.org username — the profile name, not the email address |
 
-The caller must pass it through explicitly:
+No API key is stored. The push authenticates through GitHub OIDC: nuget.org checks the workflow's
+token against a trusted publishing policy and issues a key that expires with the job. Three things
+have to line up, and all three are on the caller's side:
 
 ```yaml
-secrets:
-  NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+jobs:
+  cicd:
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+    permissions:
+      contents: read
+      id-token: write        # a reusable workflow cannot grant itself this
+    with: ...
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
+
+The third is on nuget.org: under your account, add a trusted publishing policy naming this
+repository and the workflow file that calls this one. Without it the login step fails, and no
+amount of workflow configuration will fix it.
 
 ## Managing the DLL removal list
 
@@ -305,7 +324,7 @@ When the ModSharp-provided DLL set changes:
 
 1. Update `defaults/dlls-to-remove.txt` in this repo.
 2. Cut a new tag.
-3. Callers just bump `@v1` → `@v2`.
+3. Callers just bump `@v2` → `@v2`.
 
 ### Adding project-specific entries
 
@@ -358,11 +377,14 @@ with:
 List the directories you want to publish in `nuget-project-dirs`. The workflow reads `<Version>` from `config.props` (or whatever `nuget-config-props` points to) and pushes only `*.<Version>.nupkg` from `bin/Release/`.
 
 ```yaml
+permissions:
+  contents: read
+  id-token: write
 with:
   nuget-project-dirs: MyLib1 MyLib2
   nuget-config-props: config.props   # default
 secrets:
-  NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+  NUGET_USER: ${{ secrets.NUGET_USER }}
 ```
 
 Example `config.props`:
@@ -447,7 +469,7 @@ This workflow stops at artifact upload. Add a separate release job in your calle
 ```yaml
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       main-artifact-name: MyPlugin
@@ -480,7 +502,7 @@ Use `pattern:` + `merge-multiple: true` to download every matrix entry:
 ```yaml
 jobs:
   cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v1
+    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
     with:
       projects: MyPlugin
       platforms: linux-x64 win-x64
@@ -549,7 +571,7 @@ The `build` CI job runs steps 1 through 6 only — no zipping, no upload.
 | `::error::<Version> not found in config.props` | Confirm the props file contains `<Project><PropertyGroup><Version>...</Version></PropertyGroup></Project>` |
 | `::warning::<name>/<name>.csproj not found, skipping` | The name passed to `projects` must match the directory and csproj filename |
 | `::error::no paths to include in <name> zip` | Nothing under `.build/` matched `main-artifact-include`. Check the build succeeded and the include paths are correct. |
-| `::error::NUGET_API_KEY secret is required` | Make sure the caller passes `secrets: NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}` |
+| `::error::no NuGet API key` | The OIDC login produced nothing. Check all three: the caller passes `secrets: NUGET_USER`, the calling job grants `permissions: id-token: write`, and nuget.org has a trusted publishing policy for this repository and workflow |
 | Artifact upload fails with `if-no-files-found: error` | You tagged without setting either `main-artifact-name` or `extended-artifact-name`. Set at least one. |
 | Matrix doesn't parallelize | Confirm `platforms` really has multiple entries. Use space or newline separation — no JSON array syntax. |
 
