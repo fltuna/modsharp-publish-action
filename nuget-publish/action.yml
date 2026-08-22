@@ -1,0 +1,65 @@
+name: 'ModSharp NuGet publish'
+description: >-
+  Pack the given project directories and push them to nuget.org, authenticating through GitHub OIDC
+  rather than a stored API key. Use it as a step in a job the package's own repository defines - see
+  the note below on why this cannot live in the reusable workflow.
+author: 'possession-community'
+
+# Why an action and not a job in deploy.yml: nuget.org's trusted publishing checks the OIDC token's
+# job_workflow_ref against the repository that owns the package. That claim names the workflow file
+# the *job* is declared in, so a job inside a reusable workflow presents this repository's path and
+# is rejected. A composite action is expanded inside the caller's own job, which keeps the claim
+# pointing at the caller and is the only arrangement nuget.org accepts.
+
+inputs:
+  project-dirs:
+    description: 'Project directories to pack and push, space or newline separated'
+    required: true
+  config-props:
+    description: 'Props file holding <Version>, relative to the repository root'
+    required: false
+    default: 'config.props'
+  dotnet-version:
+    description: '.NET SDK version'
+    required: false
+    default: '10.0.x'
+  user:
+    description: 'nuget.org username - the profile name, not the email address'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate NuGet PackageIds
+      shell: bash
+      env:
+        MSD_NUGET_PROJECT_DIRS: ${{ inputs.project-dirs }}
+      run: bash "$GITHUB_ACTION_PATH/../scripts/validate-packageids.sh"
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Extract version
+      id: version
+      shell: bash
+      env:
+        MSD_PROPS_FILE: ${{ inputs.config-props }}
+      run: bash "$GITHUB_ACTION_PATH/../scripts/extract-version.sh"
+
+    # Trusted publishing: nuget.org verifies this job's OIDC token against the policy configured on
+    # the package owner's account and hands back a key that expires with the run.
+    - name: NuGet login
+      id: nuget-login
+      uses: NuGet/login@v1
+      with:
+        user: ${{ inputs.user }}
+
+    - name: Pack and push
+      shell: bash
+      env:
+        NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        MSD_NUGET_PROJECT_DIRS: ${{ inputs.project-dirs }}
+        MSD_VERSION: ${{ steps.version.outputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/../scripts/pack-and-push.sh"

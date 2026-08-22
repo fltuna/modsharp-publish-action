@@ -148,9 +148,6 @@ on:
 jobs:
   cicd:
     uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
-    permissions:
-      contents: read
-      id-token: write
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -169,11 +166,24 @@ jobs:
         https://github.com/fltuna/TnmsExtendableTargeting/releases/latest/download/TnmsExtendableTargeting.zip
         https://github.com/fltuna/TnmsLocalizationPlatform/releases/latest/download/TnmsLocalizationPlatform.zip
 
-      # NuGet
+      # CI 中の検証用。push 自体は下のジョブが行う。
       nuget-project-dirs: TnmsPluginFoundation
-      nuget-config-props: config.props
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+
+  # nuget.org は OIDC トークンの job_workflow_ref をパッケージ所有リポジトリと照合するため、
+  # push は上の再利用ワークフローの中ではなく、ここで宣言したジョブで実行する必要がある。
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: TnmsPluginFoundation
+          user: ${{ secrets.NUGET_USER }}
 ```
 
 結果 (tag push時):
@@ -197,9 +207,6 @@ on:
 jobs:
   cicd:
     uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
-    permissions:
-      contents: read
-      id-token: write
     with:
       projects: |
         PluginA
@@ -212,8 +219,22 @@ jobs:
       main-artifact-include: modules shared gamedata
 
       nuget-project-dirs: CoreLib ExtensionLib
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+
+  # nuget.org は OIDC トークンの job_workflow_ref をパッケージ所有リポジトリと照合するため、
+  # push は上の再利用ワークフローの中ではなく、ここで宣言したジョブで実行する必要がある。
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: CoreLib ExtensionLib
+          user: ${{ secrets.NUGET_USER }}
 ```
 
 ## 入力一覧
@@ -278,8 +299,7 @@ jobs:
 
 | 入力 | 型 | デフォルト | 説明 |
 | --- | --- | --- | --- |
-| `nuget-project-dirs` | string | `''` | pack & push するプロジェクトディレクトリ (スペース/改行区切り)。空ならNuGet公開スキップ |
-| `nuget-config-props` | string | `config.props` | `<Version>` を持つprops/xmlファイルへのパス (repo root基準) |
+| `nuget-project-dirs` | string | `''` | CI 中に `<PackageId>` を検証するプロジェクトディレクトリ (スペース/改行区切り)。空なら検証スキップ |
 
 csproj には明示的な `<PackageId>` が必須 ([NuGet公開](#nuget公開)参照)。
 
@@ -287,27 +307,42 @@ csproj には明示的な `<PackageId>` が必須 ([NuGet公開](#nuget公開)�
 
 | 名前 | 必須 | 用途 |
 | --- | --- | --- |
-| `NUGET_USER` | `nuget-project-dirs` 指定時のみ | nuget.org のユーザー名。メールアドレスではなくプロフィール名 |
+| `NUGET_USER` | NuGet に publish する場合のみ | nuget.org のユーザー名。メールアドレスではなくプロフィール名 |
+
+再利用ワークフロー自体は secrets を受け取りません。
+唯一必要なのは NuGet 用のもので、これは `nuget-publish` アクションに渡します。
 
 APIキーはどこにも保存しません。
-push の認証は GitHub OIDC 経由で行われ、nuget.org がワークフローのトークンを trusted publishing ポリシーと照合し、そのジョブ限りで失効するキーを発行します。
-必要な条件は 3 つあり、そのうち 2 つは呼び出し側にあります。
+push の認証は GitHub OIDC 経由で行われ、nuget.org がジョブのトークンを trusted publishing ポリシーと照合し、その実行限りで失効するキーを発行します。
+必要な条件は 3 つあります。
+
+2 つは自分のワークフロー側です。ジョブに `id-token: write` を与え、`NUGET_USER` を渡します。
 
 ```yaml
-jobs:
-  cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write        # 再利用ワークフローは自分自身にこの権限を与えられない
-    with: ...
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: MyLib
+          user: ${{ secrets.NUGET_USER }}
 ```
 
-3 つ目は nuget.org 側にあります。
-アカウントの設定で、このリポジトリと、呼び出し元のワークフローファイルを指定した trusted publishing ポリシーを追加してください。
+3 つ目は nuget.org 側です。
+アカウントの設定で、このリポジトリと**このワークフローファイル**を指定した trusted publishing ポリシーを追加してください。
 これが無いとログインステップが失敗し、ワークフロー側をいくら直しても通りません。
+
+この形になっている理由。
+`publish-nuget` は自分のリポジトリのジョブであって、再利用ワークフローが代行するものではありません。
+nuget.org はトークンの `job_workflow_ref` クレームを検証しますが、これは「そのジョブがどのワークフローファイルで宣言されているか」を指します。
+再利用ワークフローの中のジョブは callee 側のパスを名乗るため拒否されます。
+composite action は呼び出し元のジョブの中で展開されるので、クレームは呼び出し元のままになります。
 
 ## DLL除外リストの管理
 
@@ -372,18 +407,35 @@ with:
 
 ### 基本
 
-`nuget-project-dirs` に公開したいプロジェクトディレクトリを列挙。`config.props` (または `nuget-config-props` で指定したファイル) から `<Version>` を読み取り、そのバージョンの nupkg のみを push します。
+公開は独立したアクションで、自分のリポジトリのジョブから使います。
 
 ```yaml
-permissions:
-  contents: read
-  id-token: write
-with:
-  nuget-project-dirs: MyLib1 MyLib2
-  nuget-config-props: config.props   # デフォルト
-secrets:
-  NUGET_USER: ${{ secrets.NUGET_USER }}
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: MyLib1 MyLib2
+          config-props: config.props   # デフォルト
+          user: ${{ secrets.NUGET_USER }}
 ```
+
+| 入力 | 必須 | デフォルト | 説明 |
+| --- | --- | --- | --- |
+| `project-dirs` | yes | — | pack & push するプロジェクトディレクトリ (スペース/改行区切り) |
+| `config-props` | no | `config.props` | `<Version>` を持つ props/xml ファイル (repo root 基準) |
+| `dotnet-version` | no | `10.0.x` | .NET SDK のバージョン |
+| `user` | yes | — | nuget.org のユーザー名。メールアドレスではなくプロフィール名 |
+
+props ファイルから `<Version>` を読み取り、`bin/Release/` の `*.<Version>.nupkg` だけを push します。
+`--skip-duplicate` 付きなので、同じタグを再実行しても害はありません。
+認証は OIDC です。揃える必要のある 3 条件は [Secrets](#secrets) を参照してください。
 
 `config.props` 例:
 
@@ -412,7 +464,7 @@ secrets:
 検証タイミング:
 
 - `build` (CI) ジョブ: `nuget-project-dirs` 指定時に検証 — PRの段階で検出
-- `publish-nuget` ジョブ: タグpush後も再検証
+- `nuget-publish` アクション: タグpush後、push 直前にも再検証
 
 ### push の動き
 
@@ -571,7 +623,8 @@ gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prereleas
 | `::error::<Version> not found in config.props` | `config.props` に `<Project><PropertyGroup><Version>...</Version></PropertyGroup></Project>` があるか確認 |
 | `::warning::<name>/<name>.csproj not found, skipping` | `projects` 入力の名前とディレクトリ名・csproj名が一致するか確認 |
 | `::error::no paths to include in <name> zip` | `main-artifact-include` が参照するパスが `.build/` 配下に存在しない。ビルドが成功しているか、`include` の指定が正しいか確認 |
-| `::error::no NuGet API key` | OIDC ログインがキーを取得できていない。caller が `secrets: NUGET_USER` を渡しているか、呼び出しジョブに `permissions: id-token: write` があるか、nuget.org 側に該当リポジトリ・ワークフローの trusted publishing ポリシーがあるかの 3 点を確認 |
+| `::error::no NuGet API key` | OIDC ログインがキーを取得できていない。ジョブが `user: ${{ secrets.NUGET_USER }}` を渡しているか、`permissions: id-token: write` があるか、nuget.org 側に該当リポジトリ・ワークフローファイルの trusted publishing ポリシーがあるかの 3 点を確認 |
+| `Token exchange failed (HTTP 401)` … `job_workflow_ref … does not start with <自分のrepo>` | push が再利用ワークフローの中で走っている。自分で宣言したジョブから `nuget-publish` アクションを使う ([Secrets](#secrets) 参照) |
 | Artifact upload が `if-no-files-found: error` で失敗 | `main-artifact-name` も `extended-artifact-name` も空のまま tag を打っている。どちらか設定する |
 | matrix が起動しない / matrix が常に1つしか回らない | `platforms` に複数指定できているか確認 (スペース/改行区切り、`["linux-x64","win-x64"]` のようなJSON形式は不要) |
 
@@ -581,6 +634,8 @@ gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prereleas
 modsharp-publish-action/
 ├── .github/workflows/
 │   └── deploy.yml                 # 再利用可能ワークフロー (orchestration only)
+├── nuget-publish/
+│   └── action.yml                 # composite action: pack + OIDC で nuget.org へ push
 ├── defaults/
 │   └── dlls-to-remove.txt         # ModSharp組み込みDLLのデフォルト除外リスト
 ├── scripts/

@@ -151,9 +151,6 @@ on:
 jobs:
   cicd:
     uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
-    permissions:
-      contents: read
-      id-token: write
     with:
       projects: TnmsPluginFoundation.Example
       shared-projects-phase1: TnmsPluginFoundation
@@ -172,11 +169,25 @@ jobs:
         https://github.com/fltuna/TnmsExtendableTargeting/releases/latest/download/TnmsExtendableTargeting.zip
         https://github.com/fltuna/TnmsLocalizationPlatform/releases/latest/download/TnmsLocalizationPlatform.zip
 
-      # NuGet
+      # Checked during CI; the push itself is the job below.
       nuget-project-dirs: TnmsPluginFoundation
-      nuget-config-props: config.props
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+
+  # nuget.org checks the OIDC token's job_workflow_ref against the repository that owns the
+  # package, so the push has to run in a job declared here rather than inside the reusable
+  # workflow above.
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: TnmsPluginFoundation
+          user: ${{ secrets.NUGET_USER }}
 ```
 
 Result (on tag push):
@@ -200,9 +211,6 @@ on:
 jobs:
   cicd:
     uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
-    permissions:
-      contents: read
-      id-token: write
     with:
       projects: |
         PluginA
@@ -215,8 +223,20 @@ jobs:
       main-artifact-include: modules shared gamedata
 
       nuget-project-dirs: CoreLib ExtensionLib
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: CoreLib ExtensionLib
+          user: ${{ secrets.NUGET_USER }}
 ```
 
 ## Inputs
@@ -281,36 +301,50 @@ Naming rules: see [Artifact naming rules](#artifact-naming-rules).
 
 | input | type | default | description |
 | --- | --- | --- | --- |
-| `nuget-project-dirs` | string | `''` | Project directories to pack and push (space/newline separated). Leave empty to skip NuGet publish. |
-| `nuget-config-props` | string | `config.props` | Path to a props/xml file containing `<Version>` (relative to repo root) |
+| `nuget-project-dirs` | string | `''` | Project directories whose `<PackageId>` is checked during CI (space/newline separated). Leave empty to skip the check. |
 
-Every csproj referenced here must have an explicit `<PackageId>` — see [NuGet publishing](#nuget-publishing).
+Publishing itself is not done by this workflow — see [NuGet publishing](#nuget-publishing) for the
+`nuget-publish` action and why it has to be a separate job.
 
 ## Secrets
 
+The reusable workflow takes no secrets. The only one involved is for NuGet, and it is passed to the
+`nuget-publish` action instead:
+
 | name | required | purpose |
 | --- | --- | --- |
-| `NUGET_USER` | only when `nuget-project-dirs` is set | nuget.org username — the profile name, not the email address |
+| `NUGET_USER` | only when publishing to NuGet | nuget.org username — the profile name, not the email address |
 
-No API key is stored. The push authenticates through GitHub OIDC: nuget.org checks the workflow's
-token against a trusted publishing policy and issues a key that expires with the job. Three things
-have to line up, and all three are on the caller's side:
+No API key is stored anywhere. The push authenticates through GitHub OIDC: nuget.org checks the
+job's token against a trusted publishing policy and issues a key that expires with the run. Three
+things have to line up.
+
+Two are in your workflow — the job grants `id-token: write`, and it passes `NUGET_USER`:
 
 ```yaml
-jobs:
-  cicd:
-    uses: possession-community/modsharp-publish-action/.github/workflows/deploy.yml@v2
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write        # a reusable workflow cannot grant itself this
-    with: ...
-    secrets:
-      NUGET_USER: ${{ secrets.NUGET_USER }}
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: MyLib
+          user: ${{ secrets.NUGET_USER }}
 ```
 
 The third is on nuget.org: under your account, add a trusted publishing policy naming this
-repository and the workflow file that calls this one. Without it the login step fails, and no
-amount of workflow configuration will fix it.
+repository and **this workflow file**. Without it the login step fails, and no amount of workflow
+configuration will fix it.
+
+Note the shape: `publish-nuget` is a job in your own repository, not something the reusable workflow
+does for you. nuget.org validates the token's `job_workflow_ref` claim, which names the workflow
+file the job is declared in — a job inside a reusable workflow presents that workflow's path and is
+rejected. A composite action expands inside your job, so the claim stays yours.
 
 ## Managing the DLL removal list
 
@@ -374,18 +408,35 @@ with:
 
 ### Basics
 
-List the directories you want to publish in `nuget-project-dirs`. The workflow reads `<Version>` from `config.props` (or whatever `nuget-config-props` points to) and pushes only `*.<Version>.nupkg` from `bin/Release/`.
+Publishing is a separate action, used from a job in your own repository:
 
 ```yaml
-permissions:
-  contents: read
-  id-token: write
-with:
-  nuget-project-dirs: MyLib1 MyLib2
-  nuget-config-props: config.props   # default
-secrets:
-  NUGET_USER: ${{ secrets.NUGET_USER }}
+  publish-nuget:
+    needs: cicd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: possession-community/modsharp-publish-action/nuget-publish@v2
+        with:
+          project-dirs: MyLib1 MyLib2
+          config-props: config.props   # default
+          user: ${{ secrets.NUGET_USER }}
 ```
+
+| input | required | default | description |
+| --- | --- | --- | --- |
+| `project-dirs` | yes | — | Project directories to pack and push (space/newline separated) |
+| `config-props` | no | `config.props` | Props/xml file containing `<Version>`, relative to the repository root |
+| `dotnet-version` | no | `10.0.x` | .NET SDK version |
+| `user` | yes | — | nuget.org username — the profile name, not the email address |
+
+It reads `<Version>` from the props file and pushes only `*.<Version>.nupkg` from `bin/Release/`,
+with `--skip-duplicate` so re-running a tag is harmless. Authentication is OIDC — see
+[Secrets](#secrets) for the three things that must line up, one of which is on nuget.org.
 
 Example `config.props`:
 
@@ -571,7 +622,8 @@ The `build` CI job runs steps 1 through 6 only — no zipping, no upload.
 | `::error::<Version> not found in config.props` | Confirm the props file contains `<Project><PropertyGroup><Version>...</Version></PropertyGroup></Project>` |
 | `::warning::<name>/<name>.csproj not found, skipping` | The name passed to `projects` must match the directory and csproj filename |
 | `::error::no paths to include in <name> zip` | Nothing under `.build/` matched `main-artifact-include`. Check the build succeeded and the include paths are correct. |
-| `::error::no NuGet API key` | The OIDC login produced nothing. Check all three: the caller passes `secrets: NUGET_USER`, the calling job grants `permissions: id-token: write`, and nuget.org has a trusted publishing policy for this repository and workflow |
+| `::error::no NuGet API key` | The OIDC login produced nothing. Check all three: the job passes `user: ${{ secrets.NUGET_USER }}`, grants `permissions: id-token: write`, and nuget.org has a trusted publishing policy for this repository and workflow file |
+| `Token exchange failed (HTTP 401)` … `job_workflow_ref … does not start with <your repo>` | The push is running inside the reusable workflow instead of a job in your own repository. Use the `nuget-publish` action from a job you declare — see [Secrets](#secrets) |
 | Artifact upload fails with `if-no-files-found: error` | You tagged without setting either `main-artifact-name` or `extended-artifact-name`. Set at least one. |
 | Matrix doesn't parallelize | Confirm `platforms` really has multiple entries. Use space or newline separation — no JSON array syntax. |
 
@@ -581,6 +633,8 @@ The `build` CI job runs steps 1 through 6 only — no zipping, no upload.
 modsharp-publish-action/
 ├── .github/workflows/
 │   └── deploy.yml                 # reusable workflow (orchestration only)
+├── nuget-publish/
+│   └── action.yml                 # composite action: pack + OIDC push to nuget.org
 ├── defaults/
 │   └── dlls-to-remove.txt         # built-in ModSharp DLL removal list
 ├── scripts/

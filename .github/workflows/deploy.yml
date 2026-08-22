@@ -84,25 +84,15 @@ on:
         type: string
         default: ''
       nuget-project-dirs:
-        description: 'Project directories (space/newline separated) to pack & push to NuGet. Empty skips NuGet.'
+        description: >-
+          Project directories (space/newline separated) whose <PackageId> should be checked during
+          CI. Publishing happens in the nuget-publish action, not here. Empty skips the check.
         type: string
         default: ''
-      nuget-config-props:
-        description: 'Path to props file containing <Version>. Relative to repo root.'
-        type: string
-        default: 'config.props'
       no-ci-marker:
         description: 'Commit message marker that skips the CI build'
         type: string
         default: '[no ci]'
-    secrets:
-      NUGET_USER:
-        description: >-
-          nuget.org username - the profile name, not the email address. Required when
-          nuget-project-dirs is set. The push authenticates through GitHub OIDC, which trades this
-          for an API key that expires with the job, so no long-lived key is stored anywhere.
-        required: false
-
 jobs:
   setup:
     name: Setup
@@ -260,58 +250,3 @@ jobs:
           name: ${{ needs.setup.outputs.is-multi == 'true' && format('release-artifacts-{0}', matrix.platform) || 'release-artifacts' }}
           path: dist/*.zip
           if-no-files-found: error
-
-  publish-nuget:
-    name: Publish NuGet
-    if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.nuget-project-dirs != '' }}
-    needs: publish
-    runs-on: ${{ inputs.runs-on }}
-    # id-token is what lets NuGet/login mint a key. A reusable workflow cannot grant itself more
-    # than the caller allows, so the calling job has to declare id-token: write as well.
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      # NOTE: ref is hardcoded to the major version tag. When cutting a new
-      # major version, bump this in lockstep with the tag. github.workflow_sha
-      # and github.workflow_ref both refer to the CALLER in reusable workflow
-      # context, so we cannot auto-resolve the callee's ref.
-      - name: Checkout modsharp-publish-action
-        uses: actions/checkout@v4
-        with:
-          repository: possession-community/modsharp-publish-action
-          ref: v2
-          path: .modsharp-deploy
-
-      - name: Validate NuGet PackageIds
-        env:
-          MSD_NUGET_PROJECT_DIRS: ${{ inputs.nuget-project-dirs }}
-        run: bash .modsharp-deploy/scripts/validate-packageids.sh
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ inputs.dotnet-version }}
-
-      - name: Extract version
-        id: version
-        env:
-          MSD_PROPS_FILE: ${{ inputs.nuget-config-props }}
-        run: bash .modsharp-deploy/scripts/extract-version.sh
-
-      # Trusted publishing: nuget.org verifies this workflow's OIDC token against the policy
-      # configured on the package owner's account and hands back a key valid for this run only.
-      - name: NuGet login
-        id: nuget-login
-        uses: NuGet/login@v1
-        with:
-          user: ${{ secrets.NUGET_USER }}
-
-      - name: Pack and push
-        env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-          MSD_NUGET_PROJECT_DIRS: ${{ inputs.nuget-project-dirs }}
-          MSD_VERSION: ${{ steps.version.outputs.version }}
-        run: bash .modsharp-deploy/scripts/pack-and-push.sh
